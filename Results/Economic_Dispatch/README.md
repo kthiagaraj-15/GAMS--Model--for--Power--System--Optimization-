@@ -1,1 +1,0 @@
-Supplied economic-dispatch results.
