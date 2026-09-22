@@ -1,0 +1,68 @@
+Sets t /t1*t24/, i /g1*g4/, counter /c1*c11/;
+Scalar lim /inf/;
+table gendata(i,*)
+        a       b       c      d        e      f      Pmin      Pmax      RUO      RDO
+g1      0.12    14.80   89     1.2      -5     3      28        200       40       40
+g2      0.17    16.57   83     2.3      -4.24  6.09   20        290       30       30
+g3      0.15    15.55   100    1.1      -2.15  5.69   30        190       30       30
+g4      0.19    16.21   70     1.1      -3.99  6.2    20        260       50       50;
+Parameter demand(t)
+/t1       510
+t2        530
+t3        516
+t4        510
+t5        515
+t6        544
+t7        646
+t8        686
+t9        741
+t10       734
+t11       748
+t12       760
+t13       754
+t14       700
+t15       686
+t16       720
+t17       714
+t18       761
+t19       727
+t20       714
+t21       618
+t22       584
+t23       578
+t24       544/;
+Variables       OBJ
+                costThermal
+                p(i,t)
+                EM;
+p.up(i,t)=gendata(i,"Pmax");
+p.lo(i,t)=gendata(i,"Pmin");
+Equations Genconst3, Genconst4, costThermalcalc, balance, EMcalc, EMlim;
+
+costThermalcalc.. costThermal=e=sum((t,i), gendata(i,'a')*power(p(i,t),2)+gendata(i,'b')*p(i,t)+gendata(i,'c'));
+Genconst3(i,t)..  p(i,t+1)-p(i,t)=l=gendata(i,'RUO');
+Genconst4(i,t)..  p(i,t-1)-p(i,t)=l=gendata(i,'RDO');
+balance(t).. sum(i,p(i,t))=g=demand(t);
+EMcalc.. EM=e=sum((t,i), gendata(i,'d')*power(p(i,t),2)+gendata(i,'e')*p(i,t)+gendata(i,'f'));
+EMlim.. EM=l=lim;
+
+Model DEDcostbased /all/;
+parameter report1(counter,*),rep(*),report2(counter,i,t);
+Solve DEDcostbased us QCP min costThermal;
+rep('TCmin')=costThermal.l;
+rep('EMmax')=EM.l;
+Solve DEDcostbased us QCP min EM;
+rep('TCmax')=costThermal.l;
+rep('EMmin')=EM.l;
+loop(counter,
+lim=rep('EMmax')+(rep('EMmin')-rep('EMmax'))*(ord(counter)-1)/(card(counter)-1);
+Solve DEDcostbased us qcp min costThermal;
+report1(counter,'Epsilon')=lim;
+report1(counter,'TC')=costThermal.l;
+report1(counter,'EM')=EM.l;
+report2(counter,i,t)=P.l(i,t);
+);
+execute_unload "DEDcostbased.gdx" report1
+execute 'gdxxrw.exe DEDcostbased.gdx par=report1 rng=report!a1'
+execute_unload "DEDcostbased.gdx" report2
+execute 'gdxxrw.exe DEDcostbased.gdx par=report2 rng=Pthermal!a1'
